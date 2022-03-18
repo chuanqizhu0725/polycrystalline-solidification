@@ -4,9 +4,10 @@
 #include <math.h>
 #include "mpi.h"
 
-#define NDX 200
-#define NDY 200
-#define N 10
+#define NDX 100
+#define NDY 85
+#define NDZ 100
+#define N 2
 #define BEGIN 1
 #define UTAG 2
 #define DTAG 3
@@ -16,8 +17,10 @@
 
 int ndx = NDX;
 int ndy = NDY;
+int ndz = NDZ;
 int ndmx = NDX - 1;
-int ndmy = NDY - 1;          //計算領域の一辺の差分分割数(差分ブロック数), ND-1を定義
+int ndmy = NDY - 1; //計算領域の一辺の差分分割数(差分ブロック数), ND-1を定義
+int ndmz = NDZ - 1;
 int nm = N - 1, nmm = N - 2; //考慮する結晶方位の数、N-2（考慮する結晶方位の数－１）を定義
 double PI = 3.141592;        //π、計算カウント数
 double RR = 8.3145;          //ガス定数
@@ -29,7 +32,7 @@ double fij[N][N]; //粒界移動の駆動力
 int phinum;
 
 int i, j, k, l, ii, jj, kk, ll, it; //整数
-int ip, im, jp, jm;                 //整数
+int ip, im, jp, jm, lp, lm;         //整数
 int n1, n2, n3;                     //整数
 
 int istep = 0;
@@ -49,13 +52,13 @@ double delta;  //粒界幅（差分ブロック数にて表現）
 double mobi;   //粒界の易動度
 double vm0;    //モル体積
 
-int x11, y11, x1h[10], y1h[10]; //初期核の座標
+int x11, y11, z11, x1h[10], y1h[10]; //初期核の座標
 double t, r0, r;
 
 //******* メインプログラム ******************************************
 int main(int argc, char *argv[])
 {
-    nstep = 1001;
+    nstep = 11;
     dtime = 5.0;
     temp = 1000.0;
     L = 2000.0;
@@ -127,42 +130,70 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
-        double(*phi)[N][NDX][NDY] = malloc(sizeof(*phi)); //フェーズフィールド、フェーズフィールド補助配列
-        double(*intphi)[NDX][NDY] = malloc(sizeof(*intphi));
+        double(*phi)[N][NDX][NDY][NDZ] = malloc(sizeof(*phi)); //フェーズフィールド、フェーズフィールド補助配列
+        double(*intphi)[NDX][NDY][NDZ] = malloc(sizeof(*intphi));
 
         for (i = 0; i <= ndmx; i++)
         {
             for (j = 0; j <= ndmy; j++)
             {
-                for (ii = 1; ii <= nm; ii++)
+                for (l = 0; l <= ndmz; l++)
                 {
-                    (*phi)[ii][i][j] = 0.0;
+                    for (ii = 1; ii <= nm; ii++)
+                    {
+                        (*phi)[ii][i][j][l] = 0.0;
+                    }
+                    (*phi)[0][i][j][l] = 1.0;
                 }
-                (*phi)[0][i][j] = 1.0;
             }
         }
 
-        r0 = 20.0;
-        for (ii = 1; ii <= nm; ii++)
+        // r0 = 10.0;
+        // for (ii = 1; ii <= nm; ii++)
+        // {
+        //     x11 = rand() % NDX;
+        //     y11 = rand() % NDY; //初期核の位置
+        //     z11 = rand() % NDZ; //初期核の位置
+        //     for (i = 0; i <= ndmx; i++)
+        //     {
+        //         for (j = 0; j <= ndmy; j++)
+        //         {
+        //             for (l = 0; l <= ndmz; l++)
+        //             {
+        //                 r = sqrt(((i - x11)) * (i - x11) + (j - y11) * (j - y11) + (l - z11) * (l - z11));
+        //                 if (r <= r0)
+        //                 {
+        //                     (*phi)[ii][i][j][l] = 1.0;
+        //                     for (k = 0; k <= nm; k++)
+        //                     {
+        //                         if (k != ii)
+        //                         {
+        //                             (*phi)[k][i][j][l] = 0.0;
+        //                         }
+        //                     }
+        //                 } //初期核位置のフェーズフィールドを設定
+        //             }
+        //         }
+        //     }
+        // }
+
+        for (i = 0; i <= ndmx; i++)
         {
-            x11 = rand() % 100 * (ndx / 100);
-            y11 = rand() % 100 * (ndy / 100); //初期核の位置
-            for (i = 0; i <= ndmx; i++)
+            for (j = 0; j <= ndmy; j++)
             {
-                for (j = 0; j <= ndmy; j++)
+                for (l = 0; l <= ndmz; l++)
                 {
-                    r = sqrt(((i - x11)) * (i - x11) + (j - y11) * (j - y11));
-                    if (r <= r0)
+                    if (i < 25)
+                    // if (((i - NDX / 2)) * (i - NDX / 2) + (j - NDY / 2) * (j - NDY / 2) + (l - NDZ / 2) * (l - NDZ / 2) < 64)
                     {
-                        (*phi)[ii][i][j] = 1.0;
-                        for (k = 0; k <= nm; k++)
-                        {
-                            if (k != ii)
-                            {
-                                (*phi)[k][i][j] = 0.0;
-                            }
-                        }
-                    } //初期核位置のフェーズフィールドを設定
+                        (*phi)[0][i][j][l] = 0.0;
+                        (*phi)[1][i][j][l] = 1.0;
+                    }
+                    else
+                    {
+                        (*phi)[1][i][j][l] = 0.0;
+                        (*phi)[0][i][j][l] = 1.0;
+                    }
                 }
             }
         }
@@ -188,7 +219,7 @@ int main(int argc, char *argv[])
             //// send phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Send((*phi)[ii][offset], rows * NDY, MPI_DOUBLE, dest, BEGIN, MPI_COMM_WORLD);
+                MPI_Send((*phi)[ii][offset], rows * NDY * NDZ, MPI_DOUBLE, dest, BEGIN, MPI_COMM_WORLD);
             }
 
             offset = offset + rows;
@@ -203,22 +234,39 @@ int main(int argc, char *argv[])
                      &status);
             MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
             //// receive phase fields
-            MPI_Recv((*intphi)[offset], rows * NDY, MPI_DOUBLE, source,
+            MPI_Recv((*intphi)[offset], rows * NDY * NDZ, MPI_DOUBLE, source,
                      msgtype, MPI_COMM_WORLD, &status);
         }
 
-        FILE *fp;
+        FILE *stream;
+        char buffer[30];
+        sprintf(buffer, "3d.vtk");
+        stream = fopen(buffer, "a");
 
-        fp = fopen("intphi.dat", "w");
+        fprintf(stream, "# vtk DataFile Version 1.0\n");
+        fprintf(stream, "phi_%d.vtk\n", istep);
+        fprintf(stream, "ASCII\n");
+        fprintf(stream, "DATASET STRUCTURED_POINTS\n");
+        fprintf(stream, "DIMENSIONS %d %d %d\n", NDX, NDY, NDZ);
+        fprintf(stream, "ORIGIN 0.0 0.0 0.0\n");
+        fprintf(stream, "ASPECT_RATIO 1.0 1.0 1.0\n");
+        fprintf(stream, "\n");
+        fprintf(stream, "POINT_DATA %d\n", NDX * NDY * NDZ);
+        fprintf(stream, "SCALARS scalars float\n");
+        fprintf(stream, "LOOKUP_TABLE default\n");
 
-        for (int i = 0; i <= ndmx; i++)
+        for (l = 0; l <= ndmz; l++)
         {
-            for (int j = 0; j <= ndmy; j++)
+            for (j = 0; j <= ndmy; j++)
             {
-                fprintf(fp, "%e\n", (*intphi)[i][j]);
+                for (i = 0; i <= ndmx; i++)
+                {
+                    fprintf(stream, "%e\n", (*intphi)[i][j][l]);
+                }
             }
         }
-        fclose(fp);
+        fclose(stream);
+
         end_t = clock();
         total_t = (double)(end_t - start_t) / CLOCKS_PER_SEC;
         printf("Total time taken: %lu secs\n", total_t);
@@ -230,11 +278,11 @@ int main(int argc, char *argv[])
     /************************* workers code **********************************/
     if (taskid != MASTER)
     {
-        double(*phi)[N][rows + 2][NDY] = malloc(sizeof(*phi));
-        double(*phi2)[N][rows + 2][NDY] = malloc(sizeof(*phi2));
-        int(*phiNum)[rows + 2][NDY] = malloc(sizeof(*phiNum));
-        int(*phiIdx)[N + 1][rows + 2][NDY] = malloc(sizeof(*phiIdx));
-        double(*intphi)[rows + 2][NDY] = malloc(sizeof(*intphi));
+        double(*phi)[N][rows + 2][NDY][NDZ] = malloc(sizeof(*phi));
+        double(*phi2)[N][rows + 2][NDY][NDZ] = malloc(sizeof(*phi2));
+        int(*phiNum)[rows + 2][NDY][NDZ] = malloc(sizeof(*phiNum));
+        int(*phiIdx)[N + 1][rows + 2][NDY][NDZ] = malloc(sizeof(*phiIdx));
+        double(*intphi)[rows + 2][NDY][NDZ] = malloc(sizeof(*intphi));
 
         // Receive from master
         source = MASTER;
@@ -246,7 +294,7 @@ int main(int argc, char *argv[])
         //// receive phase fields
         for (ii = 0; ii <= nm; ii++)
         {
-            MPI_Recv((*phi)[ii][1], rows * NDY, MPI_DOUBLE, source, msgtype, MPI_COMM_WORLD, &status);
+            MPI_Recv((*phi)[ii][1], rows * NDY * NDZ, MPI_DOUBLE, source, msgtype, MPI_COMM_WORLD, &status);
         }
 
     start:;
@@ -257,7 +305,7 @@ int main(int argc, char *argv[])
             //// send up boundaries of phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Send((*phi)[ii][1], NDY, MPI_DOUBLE, up, DTAG, MPI_COMM_WORLD);
+                MPI_Send((*phi)[ii][1], NDY * NDZ, MPI_DOUBLE, up, DTAG, MPI_COMM_WORLD);
             }
 
             source = up;
@@ -265,7 +313,7 @@ int main(int argc, char *argv[])
             //// receive up boundaries of phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Recv((*phi)[ii][0], NDY, MPI_DOUBLE, source,
+                MPI_Recv((*phi)[ii][0], NDY * NDZ, MPI_DOUBLE, source,
                          msgtype, MPI_COMM_WORLD, &status);
             }
         }
@@ -274,7 +322,7 @@ int main(int argc, char *argv[])
             //// send down boundaries of phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Send((*phi)[ii][rows], NDY, MPI_DOUBLE, down,
+                MPI_Send((*phi)[ii][rows], NDY * NDZ, MPI_DOUBLE, down,
                          UTAG, MPI_COMM_WORLD);
             }
 
@@ -283,7 +331,7 @@ int main(int argc, char *argv[])
             //// receive down boundaries of phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Recv((*phi)[ii][rows + 1], NDY, MPI_DOUBLE, source, msgtype,
+                MPI_Recv((*phi)[ii][rows + 1], NDY * NDZ, MPI_DOUBLE, source, msgtype,
                          MPI_COMM_WORLD, &status);
             }
         }
@@ -296,43 +344,57 @@ int main(int argc, char *argv[])
         {
             for (j = 0; j <= ndmy; j++)
             {
-                ip = i + 1;
-                im = i - 1;
-                jp = j + 1;
-                jm = j - 1;
-                if (up == NONE && i == 1)
+                for (l = 0; l <= ndmz; l++)
                 {
-                    im = 1;
-                }
-                if (down == NONE && i == rows)
-                {
-                    ip = rows;
-                }
-                if (j == ndmy)
-                {
-                    jp = 0;
-                }
-                if (j == 0)
-                {
-                    jm = ndmy;
-                }
-
-                //--- 位置(i,j)およびその周囲(i±1,j±1)において、pが０ではない方位の個数---
-                phinum = 0;
-                for (ii = 0; ii <= nm; ii++)
-                {
-                    if (((*phi)[ii][i][j] > 0.0) ||
-                        (((*phi)[ii][i][j] == 0.0) && ((*phi)[ii][ip][j] > 0.0) ||
-                         ((*phi)[ii][im][j] > 0.0) ||
-                         ((*phi)[ii][i][jp] > 0.0) ||
-                         ((*phi)[ii][i][jm] > 0.0)))
+                    ip = i + 1;
+                    im = i - 1;
+                    jp = j + 1;
+                    jm = j - 1;
+                    lp = l + 1;
+                    lm = l - 1;
+                    if (up == NONE && i == 1)
                     {
-                        phinum++;
-                        (*phiIdx)[phinum][i][j] = ii;
-                        // printf("%d  ", n00);
+                        im = 1;
                     }
+                    if (down == NONE && i == rows)
+                    {
+                        ip = rows;
+                    }
+                    if (j == ndmy)
+                    {
+                        jp = 0;
+                    }
+                    if (j == 0)
+                    {
+                        jm = ndmy;
+                    }
+                    if (l == ndmz)
+                    {
+                        lp = 0;
+                    }
+                    if (l == 0)
+                    {
+                        lm = ndmz;
+                    }
+
+                    //--- 位置(i,j)およびその周囲(i±1,j±1)において、pが０ではない方位の個数---
+                    phinum = 0;
+                    for (ii = 0; ii <= nm; ii++)
+                    {
+                        if (((*phi)[ii][i][j][l] > 0.0) ||
+                            (((*phi)[ii][i][j][l] == 0.0) && ((*phi)[ii][ip][j][l] > 0.0) ||
+                             ((*phi)[ii][im][j][l] > 0.0) ||
+                             ((*phi)[ii][i][jp][l] > 0.0) ||
+                             ((*phi)[ii][i][jm][l] > 0.0) ||
+                             ((*phi)[ii][i][j][lp] > 0.0) ||
+                             ((*phi)[ii][i][j][lm] > 0.0)))
+                        {
+                            phinum++;
+                            (*phiIdx)[phinum][i][j][l] = ii;
+                        }
+                    }
+                    (*phiNum)[i][j][l] = phinum;
                 }
-                (*phiNum)[i][j] = phinum;
             }
         }
 
@@ -341,55 +403,68 @@ int main(int argc, char *argv[])
         {
             for (j = 0; j <= ndmy; j++)
             {
-                ip = i + 1;
-                im = i - 1;
-                jp = j + 1;
-                jm = j - 1;
-                if (up == NONE && i == 1)
+                for (l = 0; l <= ndmz; l++)
                 {
-                    im = 1;
-                }
-                if (down == NONE && i == rows)
-                {
-                    ip = rows;
-                }
-                if (j == ndmy)
-                {
-                    jp = 0;
-                }
-                if (j == 0)
-                {
-                    jm = ndmy;
-                }
+                    ip = i + 1;
+                    im = i - 1;
+                    jp = j + 1;
+                    jm = j - 1;
+                    lp = l + 1;
+                    lm = l - 1;
+                    if (up == NONE && i == 1)
+                    {
+                        im = 1;
+                    }
+                    if (down == NONE && i == rows)
+                    {
+                        ip = rows;
+                    }
+                    if (j == ndmy)
+                    {
+                        jp = 0;
+                    }
+                    if (j == 0)
+                    {
+                        jm = ndmy;
+                    }
+                    if (l == ndmz)
+                    {
+                        lp = 0;
+                    }
+                    if (l == 0)
+                    {
+                        lm = ndmz;
+                    }
 
-                for (n1 = 1; n1 <= (*phiNum)[i][j]; n1++)
-                {
-                    ii = (*phiIdx)[n1][i][j];
-                    pddtt = 0.0;
-                    for (n2 = 1; n2 <= (*phiNum)[i][j]; n2++)
+                    for (n1 = 1; n1 <= (*phiNum)[i][j][l]; n1++)
                     {
-                        jj = (*phiIdx)[n2][i][j];
-                        sum1 = 0.0;
-                        for (n3 = 1; n3 <= (*phiNum)[i][j]; n3++)
+                        ii = (*phiIdx)[n1][i][j][l];
+                        pddtt = 0.0;
+                        for (n2 = 1; n2 <= (*phiNum)[i][j][l]; n2++)
                         {
-                            kk = (*phiIdx)[n3][i][j];
-                            sum1 += 0.5 * (aij[ii][kk] - aij[jj][kk]) * ((*phi)[kk][ip][j] + (*phi)[kk][im][j] + (*phi)[kk][i][jp] + (*phi)[kk][i][jm] - 4.0 * (*phi)[kk][i][j]) + (wij[ii][kk] - wij[jj][kk]) * (*phi)[kk][i][j]; //[式(4.31)の一部]
+                            jj = (*phiIdx)[n2][i][j][l];
+                            sum1 = 0.0;
+                            for (n3 = 1; n3 <= (*phiNum)[i][j][l]; n3++)
+                            {
+                                kk = (*phiIdx)[n3][i][j][l];
+                                sum1 += 0.5 * (aij[ii][kk] - aij[jj][kk]) * ((*phi)[kk][ip][j][l] + (*phi)[kk][im][j][l] + (*phi)[kk][i][jp][l] + (*phi)[kk][i][jm][l] + (*phi)[kk][i][j][lp] + (*phi)[kk][i][j][lm] - 6.0 * (*phi)[kk][i][j][l]) + (wij[ii][kk] - wij[jj][kk]) * (*phi)[kk][i][j][l]; //[式(4.31)の一部]
+                            }
+                            pddtt += -2.0 * mij[ii][jj] / (double)((*phiNum)[i][j][l]) * (sum1 - 8.0 / PI * fij[ii][jj] * sqrt((*phi)[ii][i][j][l] * (*phi)[jj][i][j][l]));
+                            //フェーズフィールドの発展方程式[式(4.31)]
                         }
-                        pddtt += -2.0 * mij[ii][jj] / (double)((*phiNum)[i][j]) * (sum1 - 8.0 / PI * fij[ii][jj] * sqrt((*phi)[ii][i][j] * (*phi)[jj][i][j]));
-                        //フェーズフィールドの発展方程式[式(4.31)]
+                        (*phi2)[ii][i][j][l] = (*phi)[ii][i][j][l] + pddtt * dtime; //フェーズフィールドの時間発展（陽解法）
+                        if ((*phi2)[ii][i][j][l] >= 1.0)
+                        {
+                            (*phi2)[ii][i][j][l] = 1.0;
+                        } //フェーズフィールドの変域補正
+                        if ((*phi2)[ii][i][j][l] <= 0.0)
+                        {
+                            (*phi2)[ii][i][j][l] = 0.0;
+                        }
                     }
-                    (*phi2)[ii][i][j] = (*phi)[ii][i][j] + pddtt * dtime; //フェーズフィールドの時間発展（陽解法）
-                    if ((*phi2)[ii][i][j] >= 1.0)
-                    {
-                        (*phi2)[ii][i][j] = 1.0;
-                    } //フェーズフィールドの変域補正
-                    if ((*phi2)[ii][i][j] <= 0.0)
-                    {
-                        (*phi2)[ii][i][j] = 0.0;
-                    }
-                }
-            } // j
-        }     // i
+                } // j
+            }     // i
+        }
 
         for (k = 0; k <= nm; k++)
         {
@@ -397,7 +472,10 @@ int main(int argc, char *argv[])
             {
                 for (j = 0; j <= ndmy; j++)
                 {
-                    (*phi)[k][i][j] = (*phi2)[k][i][j];
+                    for (l = 0; l <= ndmz; l++)
+                    {
+                        (*phi)[k][i][j][l] = (*phi2)[k][i][j][l];
+                    }
                 }
             }
         }
@@ -406,14 +484,17 @@ int main(int argc, char *argv[])
         {
             for (j = 0; j <= ndmy; j++)
             {
-                sum1 = 0.0;
-                for (k = 0; k <= nm; k++)
+                for (l = 0; l <= ndmz; l++)
                 {
-                    sum1 += (*phi)[k][i][j];
-                }
-                for (k = 0; k <= nm; k++)
-                {
-                    (*phi)[k][i][j] = (*phi)[k][i][j] / sum1;
+                    sum1 = 0.0;
+                    for (k = 0; k <= nm; k++)
+                    {
+                        sum1 += (*phi)[k][i][j][l];
+                    }
+                    for (k = 0; k <= nm; k++)
+                    {
+                        (*phi)[k][i][j][l] = (*phi)[k][i][j][l] / sum1;
+                    }
                 }
             }
         }
@@ -429,9 +510,12 @@ int main(int argc, char *argv[])
         {
             for (j = 0; j <= ndmy; j++)
             {
-                for (ii = 0; ii <= nm; ii++)
+                for (l = 0; l <= ndmz; l++)
                 {
-                    (*intphi)[i][j] += (*phi)[ii][i][j] * (*phi)[ii][i][j];
+                    for (ii = 0; ii <= nm; ii++)
+                    {
+                        (*intphi)[i][j][l] += (*phi)[ii][i][j][l] * (*phi)[ii][i][j][l];
+                    }
                 }
             }
         }
@@ -439,7 +523,7 @@ int main(int argc, char *argv[])
         MPI_Send(&offset, 1, MPI_INT, MASTER, DONE, MPI_COMM_WORLD);
         MPI_Send(&rows, 1, MPI_INT, MASTER, DONE, MPI_COMM_WORLD);
         //// send phase fields
-        MPI_Send((*intphi)[1], rows * NDY, MPI_DOUBLE, MASTER, DONE,
+        MPI_Send((*intphi)[1], rows * NDY * NDZ, MPI_DOUBLE, MASTER, DONE,
                  MPI_COMM_WORLD);
         MPI_Finalize();
     }
