@@ -5,7 +5,7 @@
 #include "mpi.h"
 
 #define NDX 100
-#define NDY 85
+#define NDY 100
 #define NDZ 100
 #define N 2
 #define BEGIN 1
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
             //// send phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Send((*phi)[ii][offset], rows * NDY * NDZ, MPI_DOUBLE, dest, BEGIN, MPI_COMM_WORLD);
+                MPI_Send(&(*phi)[ii][offset], rows * NDY * NDZ, MPI_DOUBLE, dest, BEGIN, MPI_COMM_WORLD);
             }
 
             offset = offset + rows;
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
                      &status);
             MPI_Recv(&rows, 1, MPI_INT, source, msgtype, MPI_COMM_WORLD, &status);
             //// receive phase fields
-            MPI_Recv((*intphi)[offset], rows * NDY * NDZ, MPI_DOUBLE, source,
+            MPI_Recv(&(*intphi)[offset], rows * NDY * NDZ, MPI_DOUBLE, source,
                      msgtype, MPI_COMM_WORLD, &status);
         }
 
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
         //// receive phase fields
         for (ii = 0; ii <= nm; ii++)
         {
-            MPI_Recv((*phi)[ii][1], rows * NDY * NDZ, MPI_DOUBLE, source, msgtype, MPI_COMM_WORLD, &status);
+            MPI_Recv(&(*phi)[ii][1], rows * NDY * NDZ, MPI_DOUBLE, source, msgtype, MPI_COMM_WORLD, &status);
         }
 
     start:;
@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
             //// send up boundaries of phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Send((*phi)[ii][1], NDY * NDZ, MPI_DOUBLE, up, DTAG, MPI_COMM_WORLD);
+                MPI_Send(&(*phi)[ii][1], NDY * NDZ, MPI_DOUBLE, up, DTAG, MPI_COMM_WORLD);
             }
 
             source = up;
@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
             //// receive up boundaries of phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Recv((*phi)[ii][0], NDY * NDZ, MPI_DOUBLE, source,
+                MPI_Recv(&(*phi)[ii][0], NDY * NDZ, MPI_DOUBLE, source,
                          msgtype, MPI_COMM_WORLD, &status);
             }
         }
@@ -322,7 +322,7 @@ int main(int argc, char *argv[])
             //// send down boundaries of phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Send((*phi)[ii][rows], NDY * NDZ, MPI_DOUBLE, down,
+                MPI_Send(&(*phi)[ii][rows], NDY * NDZ, MPI_DOUBLE, down,
                          UTAG, MPI_COMM_WORLD);
             }
 
@@ -331,7 +331,7 @@ int main(int argc, char *argv[])
             //// receive down boundaries of phase fields
             for (ii = 0; ii <= nm; ii++)
             {
-                MPI_Recv((*phi)[ii][rows + 1], NDY * NDZ, MPI_DOUBLE, source, msgtype,
+                MPI_Recv(&(*phi)[ii][rows + 1], NDY * NDZ, MPI_DOUBLE, source, msgtype,
                          MPI_COMM_WORLD, &status);
             }
         }
@@ -523,7 +523,7 @@ int main(int argc, char *argv[])
         MPI_Send(&offset, 1, MPI_INT, MASTER, DONE, MPI_COMM_WORLD);
         MPI_Send(&rows, 1, MPI_INT, MASTER, DONE, MPI_COMM_WORLD);
         //// send phase fields
-        MPI_Send((*intphi)[1], rows * NDY * NDZ, MPI_DOUBLE, MASTER, DONE,
+        MPI_Send(&(*intphi)[1], rows * NDY * NDZ, MPI_DOUBLE, MASTER, DONE,
                  MPI_COMM_WORLD);
         MPI_Finalize();
     }
